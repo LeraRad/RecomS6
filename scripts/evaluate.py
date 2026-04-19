@@ -6,6 +6,7 @@ import pandas as pd
 from src.algorithms.svd import SVDRecommender
 from src.algorithms.item_cf import ItemCFRecommender
 from src.algorithms.popularity import PopularityRecommender
+from src.algorithms.als import ALSRecommender
 from src.evaluation.metrics import get_top_n_recommendations, evaluate, rmse
 
 print("Script started")
@@ -60,13 +61,24 @@ def main():
     print("Evaluating Popularity...")
     pop_results = evaluate(pop_recs, train, test, n=10, threshold=4.0)
 
-    # --- Results ---
+    # --- ALS ---
+    print("\nTraining ALS...")
+    als = ALSRecommender(factors=50, iterations=20, alpha=40)
+    als.train(train)
+
+    print("Generating ALS recommendations (10K sample)...")
+    als_recs = als.recommend_all(test, train, n=10, sample_users=10000)
+
+    print("Evaluating ALS...")
+    test_sampled_als = test[test['userId'].isin(als_recs.keys())]
+    als_results = evaluate(als_recs, train, test_sampled_als, n=10, threshold=4.0)
+
     print("\n--- Results ---")
-    print(f"{'Metric':<15} {'SVD':>10} {'Item-CF':>10} {'Popularity':>12}")
-    print("-" * 50)
+    print(f"{'Metric':<15} {'SVD':>10} {'Item-CF':>10} {'ALS':>10} {'Popularity':>12}")
+    print("-" * 60)
     for metric in svd_results:
-        print(f"{metric:<15} {svd_results[metric]:>10.4f} {cf_results[metric]:>10.4f} {pop_results[metric]:>12.4f}")
-    print(f"\n{'RMSE':<15} {svd_rmse:>10.4f} {'N/A':>10} {'N/A':>12}")
+        print(f"{metric:<15} {svd_results[metric]:>10.4f} {cf_results[metric]:>10.4f} {als_results[metric]:>10.4f} {pop_results[metric]:>12.4f}")
+    print(f"\n{'RMSE':<15} {svd_rmse:>10.4f} {'N/A':>10} {'N/A':>10} {'N/A':>12}")
 
 
 if __name__ == "__main__":
