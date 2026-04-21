@@ -8,6 +8,8 @@ from src.algorithms.item_cf import ItemCFRecommender
 from src.algorithms.popularity import PopularityRecommender
 from src.algorithms.als import ALSRecommender
 from src.evaluation.metrics import get_top_n_recommendations, evaluate, rmse
+from src.algorithms.lightfm_recommender import LightFMRecommender
+from src.data.feature_engineering import build_movie_features
 
 print("Script started")
 
@@ -15,6 +17,16 @@ def load_splits(train_path, test_path):
     train = pd.read_csv(train_path)
     test = pd.read_csv(test_path)
     return train, test
+
+# --- Movie Features ---
+print("\nBuilding movie features...")
+eligible_movies = set(train['movieId'].unique())
+item_features, movie_index, tag_index = build_movie_features(
+    'data/raw/genome_scores.csv',
+    'data/raw/genome_tags.csv',
+    eligible_movies,
+    relevance_threshold=0.6
+)
 
 
 def main():
@@ -73,12 +85,24 @@ def main():
     test_sampled_als = test[test['userId'].isin(als_recs.keys())]
     als_results = evaluate(als_recs, train, test_sampled_als, n=10, threshold=4.0)
 
+    # --- LightFM ---
+    print("\nTraining LightFM...")
+    lightfm = LightFMRecommender(no_components=50, loss='warp', epochs=30)
+    lightfm.train(train, item_features_matrix=item_features, movie_index=movie_index)
+
+    print("Generating LightFM recommendations (10K sample)...")
+    lfm_recs = lightfm.recommend_all(test, train, n=10, sample_users=10000)
+
+    print("Evaluating LightFM...")
+    test_sampled_lfm = test[test['userId'].isin(lfm_recs.keys())]
+    lfm_results = evaluate(lfm_recs, train, test_sampled_lfm, n=10, threshold=4.0)
+
     print("\n--- Results ---")
-    print(f"{'Metric':<15} {'SVD':>10} {'Item-CF':>10} {'ALS':>10} {'Popularity':>12}")
-    print("-" * 60)
+    print(f"{'Metric':<15} {'SVD':>10} {'Item-CF':>10} {'ALS':>10} {'LightFM':>10} {'Popularity':>12}")
+    print("-" * 70)
     for metric in svd_results:
-        print(f"{metric:<15} {svd_results[metric]:>10.4f} {cf_results[metric]:>10.4f} {als_results[metric]:>10.4f} {pop_results[metric]:>12.4f}")
-    print(f"\n{'RMSE':<15} {svd_rmse:>10.4f} {'N/A':>10} {'N/A':>10} {'N/A':>12}")
+        print(f"{metric:<15} {svd_results[metric]:>10.4f} {cf_results[metric]:>10.4f} {als_results[metric]:>10.4f} {lfm_results[metric]:>10.4f} {pop_results[metric]:>12.4f}")
+    print(f"\n{'RMSE':<15} {svd_rmse:>10.4f} {'N/A':>10} {'N/A':>10} {'N/A':>10} {'N/A':>12}")
 
 
 if __name__ == "__main__":
