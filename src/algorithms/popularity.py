@@ -64,3 +64,21 @@ class PopularityRecommender:
             recommendations[user_id] = self.recommend(user_id, seen, n)
 
         return recommendations
+    
+    def save(self, path: str):
+        """Save trained model to disk."""
+        if self.popular_movies is None:
+            raise ValueError("Model not trained yet!")
+        import pickle
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+        print(f"Model saved to {path}")
+
+    @classmethod
+    def load(cls, path: str):
+        """Load trained model from disk."""
+        import pickle
+        with open(path, 'rb') as f:
+            model = pickle.load(f)
+        print(f"Model loaded from {path}")
+        return model
