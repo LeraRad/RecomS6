@@ -125,23 +125,32 @@ class ItemCFRecommender:
         return numerator / denominator
 
     def recommend(self, user_id, seen_movies: set, n=10):
-        """
-        Recommend top-N unseen movies for a user.
-        """
         if user_id not in self.user_means.index:
             return []
 
-        candidate_movies = [
-            m for m in self.eligible_movies
-            if m not in seen_movies
-        ]
+        # Get user's ratings as a vector aligned to movie_index
+        n_movies = len(self.movie_index)
+        user_vector = np.zeros(n_movies)
+        
+        user_ratings = self.raw_ratings.loc[user_id] if user_id in self.raw_ratings.index.get_level_values(0) else None
+        if user_ratings is not None:
+            for movie_id, rating in user_ratings.items():
+                if movie_id in self.movie_index:
+                    user_vector[self.movie_index[movie_id]] = rating
 
-        predictions = [
-            (movie_id, self.predict(user_id, movie_id))
-            for movie_id in candidate_movies
-        ]
-        predictions.sort(key=lambda x: x[1], reverse=True)
-        return [movie_id for movie_id, _ in predictions[:n]]
+        # Score all movies via matrix multiplication
+        scores = user_vector @ self.item_similarity
+
+        # Mask seen movies
+        seen_indices = [self.movie_index[m] for m in seen_movies if m in self.movie_index]
+        scores[seen_indices] = -np.inf
+
+        # Get top-N
+        top_indices = np.argpartition(scores, -n)[-n:]
+        top_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
+
+        all_movie_ids = list(self.movie_index.keys())
+        return [all_movie_ids[idx] for idx in top_indices]
 
     def recommend_all(self, test_ratings, train_ratings, n=10, sample_users=None):
         """
@@ -228,19 +237,35 @@ class ItemCFRecommender:
         return recommendations
     
     def save(self, path: str):
-        """Save trained model to disk."""
+        """Save trained model to disk. Similarity matrix saved separately as numpy for speed."""
         if self.item_similarity is None:
             raise ValueError("Model not trained yet!")
         import pickle
+        import numpy as np
+        
+        # Save similarity matrix separately
+        sim_path = path.replace('.pkl', '_similarity.npy')
+        np.save(sim_path, self.item_similarity)
+        
+        # Save rest of model without similarity matrix
+        sim_temp = self.item_similarity
+        self.item_similarity = None
         with open(path, 'wb') as f:
             pickle.dump(self, f)
+        self.item_similarity = sim_temp
         print(f"Model saved to {path}")
 
     @classmethod
     def load(cls, path: str):
         """Load trained model from disk."""
         import pickle
+        import numpy as np
+        
         with open(path, 'rb') as f:
             model = pickle.load(f)
+        
+        # Load similarity matrix from numpy file
+        sim_path = path.replace('.pkl', '_similarity.npy')
+        model.item_similarity = np.load(sim_path)
         print(f"Model loaded from {path}")
         return model

@@ -79,6 +79,15 @@ def get_user_profile(user_id: int) -> dict:
         'most_active_year': most_active_year
     }
 
+def get_closest_graph_user(user_id: int, graph_user_ids: set) -> int:
+    graph_ids = sorted(graph_user_ids)
+    # Find closest ID numerically
+    closest = min(graph_ids, key=lambda x: abs(x - user_id))
+    return int(closest)
+
+
+def get_graph_user_ids() -> set:
+    return get_graph().user_ids_in_graph
 
 # --- Model cache ---
 _models = {}
@@ -104,8 +113,11 @@ def get_item_cf():
         from src.algorithms.item_cf import ItemCFRecommender
         path = os.path.join(MODELS_DIR, 'item_cf.pkl')
         if os.path.exists(path):
+            import time
             print("Loading Item-CF from disk...")
+            start = time.time()
             _models['item_cf'] = ItemCFRecommender.load(path)
+            print(f"Item-CF loaded in {time.time() - start:.1f}s")
         else:
             print("Training Item-CF...")
             model = ItemCFRecommender(min_ratings=50, n_similar=20)
@@ -210,7 +222,7 @@ def get_recommendations(user_id: int, model_name: str, n: int = 10) -> list:
         user_df = pd.DataFrame({'userId': [user_id]})
         graph_users = set(model.user_ids_in_graph)
         if user_id not in graph_users:
-            return []
+            return None
         recs = model.recommend_all(user_df, train, n=n)
         return recs.get(user_id, [])
 
