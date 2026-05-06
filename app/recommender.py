@@ -227,3 +227,97 @@ def get_recommendations(user_id: int, model_name: str, n: int = 10) -> list:
         return recs.get(user_id, [])
 
     return []
+
+# --- Mode 2 helpers ---
+
+GENRE_TAGS = {
+    'Action': 19, 'Adventure': 29, 'Animation': 64, 'Comedy': 230,
+    'Documentary': 315, 'Horror': 522, 'Mystery': 689, 'Romance': 863,
+    'Sci-Fi': 887, 'Thriller': 1025
+}
+
+VIBE_TAGS = {
+    'Atmospheric': 86, 'Based on a book': 107, 'Dark': 285, 'Dystopia': 336,
+    'Emotional': 348, 'Feel-good': 388, 'Funny': 417, 'Historical': 508,
+    'Plot twist': 789, 'Suspense': 999, 'Thought-provoking': 1024, 'True story': 1047
+}
+
+# Load genome scores once
+_genome_scores = None
+
+def get_genome_scores():
+    global _genome_scores
+    if _genome_scores is None:
+        _genome_scores = pd.read_csv('data/raw/genome_scores.csv')
+    return _genome_scores
+
+def get_popular_movies_by_tags(selected_tag_ids: list, n: int = 15) -> pd.DataFrame:
+    """
+    Find most popular movies matching selected tags.
+    Returns DataFrame with movieId, title, avg_rating, relevance_score.
+    """
+    genome = get_genome_scores()
+    movies_df = pd.read_csv('data/raw/movie.csv')
+
+    # Get relevance scores for selected tags
+    filtered = genome[genome['tagId'].isin(selected_tag_ids)]
+
+    # Average relevance per movie across selected tags
+    movie_relevance = filtered.groupby('movieId')['relevance'].mean().reset_index()
+    movie_relevance.columns = ['movieId', 'relevance_score']
+
+    # Get popularity from train ratings
+    movie_popularity = train.groupby('movieId').agg(
+        avg_rating=('rating', 'mean'),
+        rating_count=('rating', 'count')
+    ).reset_index()
+
+    # Merge everything
+    result = movie_relevance.merge(movie_popularity, on='movieId')
+    result = result.merge(movies_df[['movieId', 'title']], on='movieId')
+
+    # Filter movies with enough ratings
+    result = result[result['rating_count'] >= 100]
+
+    # Combined score: relevance + popularity signal
+    result['combined_score'] = result['relevance_score'] * 0.6 + \
+                                (result['avg_rating'] / 5.0) * 0.3 + \
+                                (result['rating_count'] / result['rating_count'].max()) * 0.1
+
+    result = result.sort_values('combined_score', ascending=False).head(n)
+    result['title'] = result['title'].apply(clean_title)
+    return result
+
+
+def get_content_based_recommendations(liked_movie_ids: list, n: int = 10) -> list:
+    """
+    Find movies similar to liked movies using genome tag similarity.
+    Returns list of movieIds.
+    """
+    genome = get_genome_scores()
+
+    # Get tag profiles for liked movies
+    liked_tags = genome[
+        (genome['movieId'].isin(liked_movie_ids)) &
+        (genome['relevance'] >= 0.5)
+    ].groupby('tagId')['relevance'].mean()
+
+    if liked_tags.empty:
+        return []
+
+    # Score all other movies by tag overlap
+    all_movies = genome[
+        (~genome['movieId'].isin(liked_movie_ids)) &
+        (genome['tagId'].isin(liked_tags.index))
+    ].copy()
+
+    all_movies['weighted_relevance'] = all_movies['tagId'].map(liked_tags) * all_movies['relevance']
+    movie_scores = all_movies.groupby('movieId')['weighted_relevance'].sum()
+
+    # Filter to movies with enough ratings
+    popular = train.groupby('movieId').size()
+    popular = popular[popular >= 50].index
+    movie_scores = movie_scores[movie_scores.index.isin(popular)]
+
+    top_movies = movie_scores.sort_values(ascending=False).head(n)
+    return top_movies.index.tolist()
