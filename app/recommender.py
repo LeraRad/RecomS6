@@ -231,9 +231,14 @@ def get_recommendations(user_id: int, model_name: str, n: int = 10) -> list:
 # --- Mode 2 helpers ---
 
 GENRE_TAGS = {
-    'Action': 19, 'Adventure': 29, 'Animation': 64, 'Comedy': 230,
-    'Documentary': 315, 'Horror': 522, 'Mystery': 689, 'Romance': 863,
-    'Sci-Fi': 887, 'Thriller': 1025
+    'Action': 19, 'Adventure': 29, 'Animation': 64, 'Biography': 134,
+    'Comedy': 230, 'Coming of Age': 235, 'Crime': 268, 'Documentary': 315,
+    'Family': 374, 'Fantasy': 377, 'Heist': 498, 'Horror': 522,
+    'Martial Arts': 631, 'Musical': 686, 'Mystery': 689, 'Noir': 711,
+    'Psychological': 823, 'Road Movie': 854, 'Romance': 863, 'Sci-Fi': 887,
+    'Slasher': 927, 'Space': 942, 'Spy': 960, 'Superhero': 989,
+    'Thriller': 1025, 'Time Travel': 1028, 'Vampire': 1067, 'War': 1096,
+    'Western': 1107, 'Zombie': 1127
 }
 
 VIBE_TAGS = {
@@ -251,40 +256,35 @@ def get_genome_scores():
         _genome_scores = pd.read_csv('data/raw/genome_scores.csv')
     return _genome_scores
 
-def get_popular_movies_by_tags(selected_tag_ids: list, n: int = 15) -> pd.DataFrame:
+def get_popular_movies_by_tags(selected_tag_ids: list, n: int = 15, offset: int = 0) -> pd.DataFrame:
     """
     Find most popular movies matching selected tags.
-    Returns DataFrame with movieId, title, avg_rating, relevance_score.
+    offset allows pagination — skip already shown movies.
     """
     genome = get_genome_scores()
     movies_df = pd.read_csv('data/raw/movie.csv')
 
-    # Get relevance scores for selected tags
     filtered = genome[genome['tagId'].isin(selected_tag_ids)]
-
-    # Average relevance per movie across selected tags
     movie_relevance = filtered.groupby('movieId')['relevance'].mean().reset_index()
     movie_relevance.columns = ['movieId', 'relevance_score']
 
-    # Get popularity from train ratings
     movie_popularity = train.groupby('movieId').agg(
         avg_rating=('rating', 'mean'),
         rating_count=('rating', 'count')
     ).reset_index()
 
-    # Merge everything
     result = movie_relevance.merge(movie_popularity, on='movieId')
     result = result.merge(movies_df[['movieId', 'title']], on='movieId')
-
-    # Filter movies with enough ratings
     result = result[result['rating_count'] >= 100]
 
-    # Combined score: relevance + popularity signal
-    result['combined_score'] = result['relevance_score'] * 0.6 + \
-                                (result['avg_rating'] / 5.0) * 0.3 + \
-                                (result['rating_count'] / result['rating_count'].max()) * 0.1
+    result['combined_score'] = (
+        result['relevance_score'] * 0.6 +
+        (result['avg_rating'] / 5.0) * 0.3 +
+        (result['rating_count'] / result['rating_count'].max()) * 0.1
+    )
 
-    result = result.sort_values('combined_score', ascending=False).head(n)
+    result = result.sort_values('combined_score', ascending=False)
+    result = result.iloc[offset:offset + n]
     result['title'] = result['title'].apply(clean_title)
     return result
 

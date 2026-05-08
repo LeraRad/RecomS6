@@ -27,3 +27,17 @@ found_scores = genome_scores[genome_scores['tagId'].isin(found['tagId'])].groupb
 ).reset_index()
 found_scores = found_scores.merge(genome_tags, on='tagId')
 print(found_scores.sort_values('movie_count', ascending=False))
+
+additional_tags = ['western', 'musical', 'sport', 'war', 'crime', 
+                   'fantasy', 'biography', 'family', 'psychological',
+                   'noir', 'slasher', 'zombie', 'vampire', 'superhero',
+                   'heist', 'courtroom', 'road movie', 'coming of age',
+                   'martial arts', 'spy', 'space', 'time travel']
+
+found = genome_tags[genome_tags['tag'].str.lower().isin(additional_tags)]
+found_scores = genome_scores[genome_scores['tagId'].isin(found['tagId'])].groupby('tagId').agg(
+    avg_relevance=('relevance', 'mean'),
+    movie_count=('movieId', 'nunique')
+).reset_index()
+found_scores = found_scores.merge(genome_tags, on='tagId')
+print(found_scores.sort_values('movie_count', ascending=False))
