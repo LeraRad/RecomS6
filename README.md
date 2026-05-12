@@ -11,8 +11,6 @@ A portfolio-grade recommendation system comparing 6 algorithms on the MovieLens 
 
 RecomS6 implements and evaluates six recommendation approaches — from a simple popularity baseline to a Neo4j graph recommender with genome tag traversal — using a unified evaluation pipeline and a Streamlit UI with TMDB movie posters.
 
-The project is structured as a serious ML engineering exercise, not a tutorial follow-along. Every algorithm choice, evaluation decision, and engineering tradeoff is documented and defensible.
-
 ---
 
 ## Demo
@@ -99,11 +97,108 @@ Evaluation uses per-user temporal splits (last 20% of each user's interactions b
 - Median ratings per user: 54 (mean: 114, heavily right-skewed due to power users)
 - Median ratings per movie (after filtering): 89
 
+---
 
+## LLM-Based Evaluation
+
+In addition to standard offline metrics, recommendations were evaluated 
+using a local LLM (Llama 3.1 8B via Ollama) as an independent judge — 
+an emerging technique known as **LLM-as-judge evaluation**.
+
+### Methodology
+
+For each of 50 sampled users across all 6 models (300 evaluations total):
+
+1. An algorithmic taste profile is built from the user's rating history — 
+   top genres, key genome tags, favourite movies, and rating style
+2. The profile and 10 recommendations are sent to Llama 3.1 8B running locally
+3. The model scores the recommendations 1-10 and provides structured reasoning, 
+   strengths, and weaknesses
+4. Results are aggregated and compared across models
+
+All inference runs locally on-device.
+
+### Results
+
+| Model | Avg LLM Score | Quantitative Rank |
+|-------|--------------|------------------|
+| LightFM | **6.77/10** | 1st (Top-N) |
+| Graph | 6.73/10 | 1st (Precision) |
+| ALS | 6.55/10 | 3rd |
+| Item-CF | 6.54/10 | 2nd (Top-N) |
+| Popularity | 6.03/10 | 5th |
+| SVD | 6.00/10 | 6th |
+
+LLM evaluation rankings are consistent with quantitative offline metrics — 
+LightFM and Graph outperform SVD and Popularity in both evaluation methods. 
+This cross-validation strengthens confidence in the findings.
+
+246 of 300 evaluations produced valid scores (54 discarded due to JSON 
+parsing failures).
+
+### Limitations
+
+See [Limitations & Future Work](#limitations--future-work) for a detailed 
+discussion of evaluation biases and profile depth constraints.
+
+---
 
 ## Tech Stack
 
-Python 3.11 · scikit-surprise · LightFM · implicit · FAISS · Neo4j · Streamlit · pandas · numpy · scipy · scikit-learn · TMDB API
+Python 3.11 · scikit-surprise · LightFM · implicit · FAISS · Neo4j · Streamlit · pandas · numpy · scipy · scikit-learn · TMDB API · Ollama (llama3.1:8b)
+
+---
+
+## Limitations & Future Work
+
+### Evaluation Limitations
+
+**LLM evaluation selection bias**
+The LLM-based evaluation was conducted on the top 10,000 most active users 
+(required for graph model coverage). Active users are more familiar with 
+popular films, which may inflate Popularity baseline scores. A more 
+representative evaluation would sample across all activity levels.
+
+**Shallow taste profiles**
+User profiles sent to the LLM contain only top genres, top genome tags, 
+and favourite movies. This misses negative signals (disliked movies), 
+taste nuance within genres, and temporal preference evolution. Richer 
+profiles would likely produce more discriminating evaluation scores.
+
+**LLM scoring tendency**
+Llama 3.1 8B tends toward middle scores (6-7/10), compressing the 
+difference between models. A larger model or more carefully engineered 
+prompt might produce wider score distributions.
+
+### Model Limitations
+
+**SVD objective mismatch**
+SVD is optimized for rating prediction (RMSE) rather than ranking. 
+Strong RMSE (0.80) does not translate to Top-N performance.
+
+**Graph coverage**
+Neo4j graph contains only top 10K users and top 5K movies due to 
+free-tier constraints. Graph recommendations unavailable for 
+less active users.
+
+**Item-CF memory**
+Item-CF similarity matrix requires ~950MB on disk. At larger scale 
+(100K+ items) this approach becomes infeasible.
+
+**Cold start**
+All CF models fail for new users with no rating history. Mode 2 
+addresses this with content-based cold start but without 
+collaborative signal.
+
+### Future Work
+
+- Richer taste profiles using negative signals and rating distributions
+- Online A/B evaluation with real user feedback
+- BPR (Bayesian Personalized Ranking) as additional ranking-optimized baseline
+- FAISS IVF index for production-scale candidate retrieval
+- LLM-generated taste summaries instead of algorithmic profiles
+- Hyperparameter optimization via systematic grid search
+- Graph model expansion with full dataset using Neo4j AuraDB paid tier
 
 ---
 
@@ -115,5 +210,9 @@ MIT — see [LICENSE](LICENSE)
 
 ## Author
 
-Built as a portfolio project demonstrating practical ML engineering across algorithm breadth, evaluation rigor, and production-oriented design decisions.
-A movie recommendation system exploring 6 algorithms on the MovieLens 20M dataset, with unified evaluation metrics and an interactive Streamlit UI.
+Built as a portfolio project demonstrating practical ML engineering across 
+algorithm breadth, evaluation rigor, and production-oriented design decisions. 
+Implements 6 recommendation algorithms on MovieLens 20M, evaluated through 
+both standard offline metrics and LLM-as-judge evaluation using a locally 
+running Llama 3.1 8B model — combining quantitative rigor with qualitative 
+reasoning-based assessment.
