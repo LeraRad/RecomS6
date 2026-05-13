@@ -307,8 +307,9 @@ else:
                 """, unsafe_allow_html=True)
 
                 liked_movies = st.session_state['mode2_movies']
+                shown = st.session_state.get('mode2_shown_movies', [])
                 if liked_movies:
-                    rec_ids = get_content_based_recommendations(liked_movies, n=10)
+                    rec_ids = get_content_based_recommendations(liked_movies, n=10, exclude_movies=shown)
                 else:
                     # No movies selected (3 skips) — use tags only
                     selected_tag_ids = (
@@ -318,12 +319,6 @@ else:
                     popular = get_popular_movies_by_tags(selected_tag_ids, n=10, offset=45)
                     rec_ids = popular['movieId'].tolist()
 
-                time.sleep(0.8)
-
-            placeholder.empty()
-            st.session_state['mode2_recs'] = rec_ids
-
-        rec_ids = st.session_state['mode2_recs']
 
         if not rec_ids:
             st.warning("Couldn't generate recommendations. Try different selections.")

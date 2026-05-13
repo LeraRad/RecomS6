@@ -289,7 +289,7 @@ def get_popular_movies_by_tags(selected_tag_ids: list, n: int = 15, offset: int 
     return result
 
 
-def get_content_based_recommendations(liked_movie_ids: list, n: int = 10) -> list:
+def get_content_based_recommendations(liked_movie_ids: list, n: int = 10, exclude_movies: list = None) -> list:
     """
     Find movies similar to liked movies using genome tag similarity.
     Returns list of movieIds.
@@ -319,5 +319,7 @@ def get_content_based_recommendations(liked_movie_ids: list, n: int = 10) -> lis
     popular = popular[popular >= 50].index
     movie_scores = movie_scores[movie_scores.index.isin(popular)]
 
+    if exclude_movies:
+        movie_scores = movie_scores[~movie_scores.index.isin(exclude_movies)]
     top_movies = movie_scores.sort_values(ascending=False).head(n)
     return top_movies.index.tolist()
