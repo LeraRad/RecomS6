@@ -15,10 +15,38 @@ RecomS6 implements and evaluates six recommendation approaches — from a simple
 
 ## Demo
 
-**Mode 1 — Existing User**: Enter a MovieLens user ID, select a model, and get 10 personalized recommendations with posters and synopses. A user profile (top genres, favourite movies, rating history) is displayed alongside.
+### Mode 1 — Existing User Recommendations
 
-**Mode 2 — New User Cold Start**: No user ID required. Select genres and vibes, pick up to 3 movies you've seen, and get content-based recommendations generated from genome tag similarity.
+Get instant personalized movie recommendations using an existing MovieLens user ID.  
+Choose a recommendation model and receive:
 
+- 10 tailored movie recommendations
+- Movie posters and short synopses
+- A generated user profile with:
+  - top genres
+  - favourite movies
+  - rating history insights
+
+<p align="center">
+  <img src="./assets/gifs/Mode1.gif" width="850"/>
+</p>
+
+---
+
+### Mode 2 — Cold Start Recommendations
+
+No MovieLens account or user ID required.
+
+Build your taste profile by selecting:
+- preferred genres
+- preferred vibes
+- up to 3 movies you already enjoy
+
+The system then generates content-based recommendations using genome tag similarity and movie feature analysis.
+
+<p align="center">
+  <img src="./assets/gifs/Mode2.gif" width="850"/>
+</p>
 ---
 
 ## Algorithms
